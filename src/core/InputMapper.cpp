@@ -79,19 +79,21 @@ void InputMapper::setAimMode(bool active) {
 void InputMapper::handleMouseMove(float deltaX, float deltaY) {
     if (!m_isAiming) return;
 
-    // Математика прицеливания BlueStacks 4:
-    // Конвертируем дельты мыши в смещение виртуального тач-пальца
-    float effectiveX = deltaX * m_sensX * 0.0015f;
-    float effectiveY = deltaY * m_sensY * 0.0015f;
+    // Convert mouse movement to normalized touch drag deltas.
+    // 0.0015f scaling factor replicates BlueStacks 4 input curve linearity.
+    const float effectiveX = deltaX * m_sensX * 0.0015f;
+    const float effectiveY = deltaY * m_sensY * 0.0015f;
 
-    // Отправляем тач-событие свайпа в Android
+    // Pass touch swipe motion to Android event queue
     emit touchEventEmitted(m_virtualAimCenter.x() + effectiveX,
                            m_virtualAimCenter.y() + effectiveY,
                            2 /* ACTION_MOVE */);
 }
 
 void InputMapper::handleKeyPress(int key, bool isDown) {
-    // Smart Aim: авто-разблокировка курсора при удержании Tab (инвентарь) или B (закупка)
+    // Smart Aim: automatically release mouse cursor when holding Tab (scoreboard)
+    // or B (buy menu in Standoff 2 / CS style games).
+    // Releasing the key snaps back into shooting mode immediately.
     // 0x01000001 = Qt::Key_Tab, 0x42 = Qt::Key_B
     if (key == 0x01000001 || key == 0x42) {
         setAimMode(!isDown);
@@ -99,9 +101,9 @@ void InputMapper::handleKeyPress(int key, bool isDown) {
 }
 
 void InputMapper::loadProfile(const QString &gameName) {
-    qDebug() << "[InputMapper] Загружен профиль управления для:" << gameName;
+    qDebug() << "[InputMapper] Loading profile:" << gameName;
 }
 
 void InputMapper::saveProfile(const QString &gameName) {
-    qDebug() << "[InputMapper] Сохранен профиль управления для:" << gameName;
+    qDebug() << "[InputMapper] Saving profile:" << gameName;
 }

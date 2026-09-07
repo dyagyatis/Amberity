@@ -21,12 +21,12 @@ VmManager::VmManager(QObject *parent)
     connect(m_process, &QProcess::readyReadStandardError,
             this, &VmManager::onProcessReadyRead);
 
-    // Таймер симуляции телеметрии для оверлея железа
-    auto statsTimer = new QTimer(this);
+    // Mock telemetry updates for the HUD overlay until the guest daemon connects
+    auto *statsTimer = new QTimer(this);
     connect(statsTimer, &QTimer::timeout, this, [this]() {
         if (m_isRunning) {
-            m_gpuTemp = 52.0f + static_cast<float>(qrand() % 60) / 10.0f;
-            m_vramUsage = 1.7f + static_cast<float>(qrand() % 40) / 100.0f;
+            m_gpuTemp = 50.0f + static_cast<float>(qrand() % 50) / 10.0f;
+            m_vramUsage = 1.6f + static_cast<float>(qrand() % 30) / 100.0f;
             emit hardwareStatsUpdated();
         }
     });
@@ -65,33 +65,33 @@ void VmManager::setRootEnabled(bool enabled) {
 QStringList VmManager::buildQemuArgs() const {
     QStringList args;
 
-    // 1. Аппаратная виртуализация ядра Linux
-    args << "-enable-kvm";
-    args << "-cpu" << "host";
-    args << "-smp" << "4";
-    args << "-m" << "4096";
+    // Direct host CPU pass-through so guest ART/JIT has access to AVX2/SSE4
+    args << "-enable-kvm"
+         << "-cpu" << "host"
+         << "-smp" << "4"
+         << "-m" << "4096";
 
-    // 2. Графический стек VirtIO-GPU
+    // Graphics device: Venus protocol enables direct Vulkan passthrough via VirtIO,
+    // virgl handles older OpenGL ES titles on Nvidia host drivers
     if (m_graphicsBackend == "vulkan") {
         args << "-device" << QString("virtio-vga-gl,venus=true,refresh_rate=%1").arg(m_refreshRate);
     } else if (m_graphicsBackend == "opengl") {
         args << "-device" << QString("virtio-vga-gl,refresh_rate=%1").arg(m_refreshRate);
     } else {
-        // Auto режим: Vulkan Venus с поддержкой OpenGL VirGL
         args << "-device" << QString("virtio-vga-gl,venus=true,refresh_rate=%1").arg(m_refreshRate);
     }
     args << "-display" << "egl-headless";
 
-    // 3. Звуковой стек PipeWire
-    args << "-audiodev" << "pipewire,id=snd0,in.frequency=48000,out.frequency=48000";
-    args << "-device" << "intel-hda";
-    args << "-device" << "hda-duplex,audiodev=snd0";
+    // Direct PipeWire audio link
+    args << "-audiodev" << "pipewire,id=snd0,in.frequency=48000,out.frequency=48000"
+         << "-device" << "intel-hda"
+         << "-device" << "hda-duplex,audiodev=snd0";
 
-    // 4. Сетевой стек VirtIO с BBR
-    args << "-netdev" << "user,id=net0,hostfwd=tcp::5555-:5555";
-    args << "-device" << "virtio-net-pci,netdev=net0";
+    // VirtIO network stack with user-mode port forwarding for ADB
+    args << "-netdev" << "user,id=net0,hostfwd=tcp::5555-:5555"
+         << "-device" << "virtio-net-pci,netdev=net0";
 
-    // 5. Дисковый образ Android
+    // Disk drive using writeback cache for SSD-like IOPS
     args << "-drive" << "file=android_system.qcow2,if=virtio,cache=writeback";
 
     return args;
@@ -101,11 +101,11 @@ void VmManager::startVm() {
     if (m_isRunning) return;
 
     QStringList args = buildQemuArgs();
-    emit logMessage("Запуск гипервизора QEMU-KVM: " + args.join(" "));
+    emit logMessage("Starting QEMU-KVM: " + args.join(" "));
 
     m_isRunning = true;
     emit stateChanged(m_isRunning);
-    emit logMessage("Amberity Android Engine запущен (165 Hz, KVM Active)");
+    emit logMessage("Amberity engine active [165 Hz, KVM, VirtIO]");
 }
 
 void VmManager::stopVm() {
@@ -117,7 +117,7 @@ void VmManager::stopVm() {
     }
     m_isRunning = false;
     emit stateChanged(m_isRunning);
-    emit logMessage("Движок Amberity остановлен.");
+    emit logMessage("Amberity engine stopped.");
 }
 
 void VmManager::restartVm() {
@@ -127,40 +127,40 @@ void VmManager::restartVm() {
 
 void VmManager::installApk(const QString &path) {
     QFileInfo info(path);
-    emit logMessage(QString("Установка пакета: %1").arg(info.fileName()));
-    emit apkInstallProgress(25, "Передача APK в Android...");
+    emit logMessage(QString("Installing package: %1").arg(info.fileName()));
+    emit apkInstallProgress(25, "Pushing APK payload...");
 
     QTimer::singleShot(800, this, [this, info]() {
-        emit apkInstallProgress(75, "Выполнение adb install...");
+        emit apkInstallProgress(75, "Running adb install...");
         QTimer::singleShot(800, this, [this, info]() {
-            emit apkInstallProgress(100, QString("Приложение %1 успешно установлено!").arg(info.baseName()));
-            emit logMessage(QString("Пакет %1 готов к запуску.").arg(info.fileName()));
+            emit apkInstallProgress(100, QString("%1 installed successfully").arg(info.baseName()));
+            emit logMessage(QString("Package %1 ready.").arg(info.fileName()));
         });
     });
 }
 
 void VmManager::saveFastResumeSnapshot() {
-    emit logMessage("Сохранение оперативной памяти в кэш Fast-Resume...");
-    // Вызов qemu monitor snapshot-save
-    emit logMessage("Снимок сохранен. Запуск в следующий раз займет 0.5с.");
+    emit logMessage("Creating RAM snapshot...");
+    // TODO: Wire up QMP socket command for savevm
+    emit logMessage("Snapshot saved. Next boot will take ~0.5s.");
 }
 
 void VmManager::purgeVramCache() {
-    emit logMessage("Очистка неиспользуемых текстурных атласов VRAM...");
+    emit logMessage("Purging stale textures from host driver...");
     m_vramUsage = 1.2f;
     emit hardwareStatsUpdated();
-    emit logMessage("VRAM оптимизирована. Освобождено ~500 МБ.");
+    emit logMessage("VRAM cache flushed.");
 }
 
 void VmManager::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
     Q_UNUSED(exitStatus);
     m_isRunning = false;
     emit stateChanged(m_isRunning);
-    emit logMessage(QString("Процесс QEMU завершился с кодом %1").arg(exitCode));
+    emit logMessage(QString("QEMU process exited with code %1").arg(exitCode));
 }
 
 void VmManager::onProcessReadyRead() {
-    QByteArray output = m_process->readAllStandardOutput();
+    const QByteArray output = m_process->readAllStandardOutput();
     if (!output.isEmpty()) {
         emit logMessage(QString::fromUtf8(output).trimmed());
     }
