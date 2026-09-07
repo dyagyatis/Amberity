@@ -1,0 +1,44 @@
+# CMake Build Outputs
+build/
+bin/
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.dylib
+*.exe
+
+# CMake Temporary and Cache Files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.ninja
+.ninja_*
+
+# Qt Specific
+*.moc
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+*.qmlc
+*.jsc
+.qmake.stash
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.user
+*.suo
+*.workspace
+*.creator
+*.creator.user*
+
+# VM Disks, ISOs and Runtime Logs
+*.qcow2
+*.img
+*.iso
+*.log
+*.pid
+shared/
