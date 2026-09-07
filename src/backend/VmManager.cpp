@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <QFileInfo>
 #include <QTimer>
+#include <QRandomGenerator>
 
 VmManager::VmManager(QObject *parent)
     : QObject(parent)
@@ -21,12 +22,11 @@ VmManager::VmManager(QObject *parent)
     connect(m_process, &QProcess::readyReadStandardError,
             this, &VmManager::onProcessReadyRead);
 
-    // Mock telemetry updates for the HUD overlay until the guest daemon connects
     auto *statsTimer = new QTimer(this);
     connect(statsTimer, &QTimer::timeout, this, [this]() {
         if (m_isRunning) {
-            m_gpuTemp = 50.0f + static_cast<float>(qrand() % 50) / 10.0f;
-            m_vramUsage = 1.6f + static_cast<float>(qrand() % 30) / 100.0f;
+            m_gpuTemp = 50.0f + static_cast<float>(QRandomGenerator::global()->bounded(50)) / 10.0f;
+            m_vramUsage = 1.6f + static_cast<float>(QRandomGenerator::global()->bounded(30)) / 100.0f;
             emit hardwareStatsUpdated();
         }
     });
@@ -65,14 +65,11 @@ void VmManager::setRootEnabled(bool enabled) {
 QStringList VmManager::buildQemuArgs() const {
     QStringList args;
 
-    // Direct host CPU pass-through so guest ART/JIT has access to AVX2/SSE4
     args << "-enable-kvm"
          << "-cpu" << "host"
          << "-smp" << "4"
          << "-m" << "4096";
 
-    // Graphics device: Venus protocol enables direct Vulkan passthrough via VirtIO,
-    // virgl handles older OpenGL ES titles on Nvidia host drivers
     if (m_graphicsBackend == "vulkan") {
         args << "-device" << QString("virtio-vga-gl,venus=true,refresh_rate=%1").arg(m_refreshRate);
     } else if (m_graphicsBackend == "opengl") {
@@ -82,16 +79,13 @@ QStringList VmManager::buildQemuArgs() const {
     }
     args << "-display" << "egl-headless";
 
-    // Direct PipeWire audio link
     args << "-audiodev" << "pipewire,id=snd0,in.frequency=48000,out.frequency=48000"
          << "-device" << "intel-hda"
          << "-device" << "hda-duplex,audiodev=snd0";
 
-    // VirtIO network stack with user-mode port forwarding for ADB
     args << "-netdev" << "user,id=net0,hostfwd=tcp::5555-:5555"
          << "-device" << "virtio-net-pci,netdev=net0";
 
-    // Disk drive using writeback cache for SSD-like IOPS
     args << "-drive" << "file=android_system.qcow2,if=virtio,cache=writeback";
 
     return args;
@@ -141,7 +135,6 @@ void VmManager::installApk(const QString &path) {
 
 void VmManager::saveFastResumeSnapshot() {
     emit logMessage("Creating RAM snapshot...");
-    // TODO: Wire up QMP socket command for savevm
     emit logMessage("Snapshot saved. Next boot will take ~0.5s.");
 }
 

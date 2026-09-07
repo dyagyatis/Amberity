@@ -3,8 +3,8 @@ import QtQuick.Controls
 
 Item {
     id: root
-    width: 44
-    height: 44
+    width: 42
+    height: 42
 
     property string iconText: "⚙"
     property string tooltipText: ""
@@ -14,28 +14,27 @@ Item {
     Rectangle {
         id: bg
         anchors.fill: parent
-        radius: 8
+        radius: 6
         color: root.isActive ? "#2E2A20" : (mouseArea.containsMouse ? "#252834" : "transparent")
         border.color: root.isActive ? "#D69F47" : "transparent"
         border.width: 1
 
-        Behavior on color { ColorAnimation { duration: 150 } }
+        Behavior on color { ColorAnimation { duration: 120 } }
 
         Text {
             anchors.centerIn: parent
             text: root.iconText
-            font.pixelSize: 18
+            font.pixelSize: 16
             color: root.isActive ? "#D69F47" : (mouseArea.containsMouse ? "#FFFFFF" : "#8E92A0")
 
-            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on color { ColorAnimation { duration: 120 } }
         }
 
-        // Индикатор активного состояния слева
         Rectangle {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             width: 3
-            height: 16
+            height: 14
             radius: 1.5
             color: "#D69F47"
             visible: root.isActive
@@ -52,5 +51,5 @@ Item {
 
     ToolTip.visible: mouseArea.containsMouse && root.tooltipText !== ""
     ToolTip.text: root.tooltipText
-    ToolTip.delay: 400
+    ToolTip.delay: 350
 }
